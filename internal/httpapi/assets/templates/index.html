@@ -1,0 +1,272 @@
+{{define "index.html"}}<!DOCTYPE html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{.CSRF}}">
+<meta name="app-lang" content="{{.Lang}}">
+<title>{{call .T "Debian network configuration"}}</title>
+<link rel="stylesheet" href="/static/app.css?v={{.Version}}">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-left">
+    <h1>{{call .T "Network configuration"}}</h1>
+    <nav class="mainnav">
+      <button class="navitem active" data-tab="network">{{call .T "Network"}}</button>
+      <button class="navitem" data-tab="failover">{{call .T "Failover"}}</button>
+      <button class="navitem" data-tab="tools">{{call .T "Tools"}}</button>
+      <button class="navitem" data-tab="metrics">{{call .T "Metrics"}}</button>
+      <button class="navitem" data-tab="system">{{call .T "System"}}</button>
+    </nav>
+  </div>
+  <div class="topbar-right">
+    <span id="live" class="badge" title="{{call .T "Real-time event channel"}}">{{call .T "offline"}}</span>
+    <span class="langbar">{{range .Supported}}<a href="/?lang={{.}}">{{.}}</a>{{end}}</span>
+    <details class="usermenu">
+      <summary>{{.User}}</summary>
+      <div class="usermenu-panel">
+        <a href="/account/password">{{call .T "Change password"}}</a>
+        <form method="post" action="/logout"><button type="submit" class="link">{{call .T "Sign out"}}</button></form>
+      </div>
+    </details>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="pending" class="card pending" hidden>
+    <h2 id="pending-title">{{call .T "Change awaiting confirmation"}}</h2>
+    <p class="muted small">{{call .T "If you do not confirm, the device restores the previous configuration so you cannot lock yourself out."}}</p>
+    <ul id="pending-changes" class="changes"></ul>
+    <p id="pending-probe" class="muted small"></p>
+    <div class="countdown"><i id="pending-bar"></i></div>
+    <div class="row end">
+      <span id="pending-clock" class="mono"></span>
+      <button id="pending-rollback" class="secondary">{{call .T "Roll back now"}}</button>
+      <button id="pending-confirm" class="primary">{{call .T "Keep this change"}}</button>
+    </div>
+  </section>
+
+  <section id="hotspot" class="card hotspot" hidden>
+    <h2>{{call .T "Fallback access point is running"}}</h2>
+    <p class="muted small">{{call .T "Join this network from a phone or laptop to finish configuring the device."}}</p>
+    <dl id="hotspot-info" class="status"></dl>
+    <div class="row end">
+      <button id="hotspot-stop" class="secondary">{{call .T "Stop the access point"}}</button>
+    </div>
+  </section>
+
+  <div id="toast" class="alert" hidden></div>
+
+  <section id="interface-card" class="card">
+    <div class="row">
+      <div class="grow">
+        <label for="link">{{call .T "Interface"}}</label>
+        <select id="link"></select>
+      </div>
+      <button id="refresh" class="secondary">{{call .T "Refresh"}}</button>
+    </div>
+    <dl id="status" class="status"></dl>
+
+    <nav class="tabs">
+      <button class="tab active" data-subtab="wifi">{{call .T "Wi-Fi"}}</button>
+      <button class="tab" data-subtab="ip">{{call .T "IP address"}}</button>
+    </nav>
+  </section>
+
+  <section class="card tabpanel subpanel" data-panel="network" data-subpanel="wifi">
+    <div class="row head">
+      <h2 class="grow">{{call .T "Available networks"}}</h2>
+      <button id="scan" class="secondary">{{call .T "Scan"}}</button>
+    </div>
+    <ul id="networks" class="list"><li class="muted">{{call .T "Press “Scan” to look for Wi-Fi networks."}}</li></ul>
+
+    <h2>{{call .T "Saved networks"}}</h2>
+    <ul id="profiles" class="list"></ul>
+
+    <details>
+      <summary>{{call .T "Connect manually (hidden network)"}}</summary>
+      <form id="manual-form" autocomplete="off">
+        <label for="m-ssid">{{call .T "SSID"}}</label>
+        <input id="m-ssid" type="text" maxlength="32" required>
+        <label for="m-sec">{{call .T "Security"}}</label>
+        <select id="m-sec">
+          <option value="psk">{{call .T "WPA2 Personal (PSK)"}}</option>
+          <option value="psk-sae">{{call .T "WPA2/WPA3 transition"}}</option>
+          <option value="sae">{{call .T "WPA3 Personal (SAE)"}}</option>
+          <option value="open">{{call .T "Open (no password)"}}</option>
+        </select>
+        <label for="m-pass">{{call .T "Password"}}</label>
+        <div class="pwfield">
+          <input id="m-pass" type="password" minlength="8" maxlength="63" autocomplete="new-password">
+          <button type="button" class="link pw-toggle" hidden
+                  aria-controls="m-pass" aria-pressed="false" data-target="m-pass"
+                  data-show="{{call .T "Show"}}" data-hide="{{call .T "Hide"}}">{{call .T "Show"}}</button>
+        </div>
+        <label class="check"><input id="m-hidden" type="checkbox" checked> {{call .T "Hidden network (enable scan_ssid)"}}</label>
+        <label class="check"><input id="m-norollback" type="checkbox"> {{call .T "Do not roll back (I accept losing this session)"}}</label>
+        <button type="submit" class="secondary accent">{{call .T "Connect"}}</button>
+      </form>
+    </details>
+  </section>
+
+  <section class="card tabpanel subpanel" data-panel="network" data-subpanel="ip" hidden>
+    <h2>{{call .T "IP address"}}</h2>
+    <p id="ip-backend" class="muted small"></p>
+    <form id="ip-form" autocomplete="off">
+      <h3>IPv4</h3>
+      <label for="ip-mode">{{call .T "Mode"}}</label>
+      <select id="ip-mode">
+        <option value="dhcp">{{call .T "Automatic (DHCP)"}}</option>
+        <option value="static">{{call .T "Static"}}</option>
+        <option value="disabled">{{call .T "Disabled"}}</option>
+      </select>
+
+      <div id="static-fields" hidden>
+        <label for="ip-address">{{call .T "Address / prefix"}}</label>
+        <input id="ip-address" type="text" placeholder="192.168.1.50/24">
+        <label for="ip-gateway">{{call .T "Gateway"}}</label>
+        <input id="ip-gateway" type="text" placeholder="192.168.1.1">
+      </div>
+
+      <h3>IPv6</h3>
+      <label for="ip-mode6">{{call .T "Mode"}}</label>
+      <select id="ip-mode6">
+        <option value="auto">{{call .T "Automatic (RA / SLAAC)"}}</option>
+        <option value="static">{{call .T "Static"}}</option>
+        <option value="disabled">{{call .T "Disabled"}}</option>
+      </select>
+
+      <div id="static-fields6" hidden>
+        <label for="ip-address6">{{call .T "Address / prefix"}}</label>
+        <input id="ip-address6" type="text" placeholder="2001:db8::10/64">
+        <label for="ip-gateway6">{{call .T "Gateway"}}</label>
+        <input id="ip-gateway6" type="text" placeholder="fe80::1">
+      </div>
+
+      <h3>{{call .T "Shared"}}</h3>
+      <label for="ip-dns">{{call .T "DNS servers (one per line)"}}</label>
+      <textarea id="ip-dns" rows="3" placeholder="1.1.1.1&#10;2606:4700:4700::1111"></textarea>
+
+      <label class="check"><input id="ip-norollback" type="checkbox"> {{call .T "Do not roll back"}}</label>
+
+      <div class="row">
+        <button type="submit" class="secondary accent">{{call .T "Apply"}}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card tabpanel" data-panel="failover" hidden>
+    <h2>{{call .T "Failover"}}</h2>
+    <p class="muted small">{{call .T "The interface with the lowest metric carries the default route. The others take over only when it goes down. Active monitoring adds the other half: it pings through each interface and pushes one down the routing table when the path behind it stops answering."}}</p>
+    <p class="muted small" id="failover-monitor"></p>
+
+    <h3>{{call .T "Current order"}}</h3>
+    <ul id="failover-order" class="list"></ul>
+
+    <h3>{{call .T "Configuration"}}</h3>
+    <div id="failover-rows"></div>
+    <p class="muted small">{{call .T "One interface at a time: each change is armed with its own rollback timer."}}</p>
+    <label class="check"><input id="failover-norollback" type="checkbox"> {{call .T "Do not roll back"}}</label>
+  </section>
+
+  <section class="card tabpanel" data-panel="tools" hidden>
+    <h2>{{call .T "Fallback access point"}}</h2>
+    <p class="muted small">{{call .T "Starts a Wi-Fi network of its own with a captive portal so an unreachable device can still be configured. It starts automatically after a prolonged loss of connectivity."}}</p>
+    <dl id="tools-hotspot" class="status"></dl>
+    <div class="row">
+      <button id="hotspot-start" class="secondary">{{call .T "Start"}}</button>
+      <button id="hotspot-stop2" class="secondary">{{call .T "Stop"}}</button>
+    </div>
+
+    <h2>{{call .T "Remote access"}}</h2>
+    <p class="muted small">{{call .T "Opens the device's SSH server so you can log in and diagnose it yourself. It closes again on its own when the window runs out."}}</p>
+    <dl id="ssh-info" class="status"></dl>
+    <label for="ssh-window">{{call .T "Access window"}}</label>
+    <select id="ssh-window">
+      <option value="15">15</option>
+      <option value="30" selected>30</option>
+      <option value="60">60</option>
+      <option value="120">120</option>
+    </select>
+    <div class="row">
+      <button id="ssh-enable" class="secondary accent">{{call .T "Open SSH"}}</button>
+      <button id="ssh-disable" class="danger">{{call .T "Close SSH"}}</button>
+    </div>
+  </section>
+
+  <section class="card tabpanel" data-panel="metrics" hidden>
+    <div class="row head">
+      <h2 class="grow">{{call .T "System metrics"}}</h2>
+      <span id="metrics-age" class="muted small"></span>
+    </div>
+
+    <h3>{{call .T "Device"}}</h3>
+    <dl id="metrics-host" class="status"></dl>
+
+    <h3>{{call .T "Processor"}}</h3>
+    <div id="metrics-cpu" class="stack"></div>
+
+    <h3>{{call .T "Memory"}}</h3>
+    <div id="metrics-memory" class="stack"></div>
+
+    <h3>{{call .T "Storage"}}</h3>
+    <div id="metrics-storage" class="stack"></div>
+
+    <h3>{{call .T "Sensors"}}</h3>
+    <div id="metrics-sensors" class="stack"></div>
+  </section>
+
+  <section class="card tabpanel" data-panel="system" hidden>
+    <h2>{{call .T "System"}}</h2>
+
+    <label for="sys-window">{{call .T "Confirmation window (seconds)"}}</label>
+    <input id="sys-window" type="number" min="15" max="600" value="90">
+    <p class="muted small">{{call .T "How long you have to confirm a risky change before the device restores the previous configuration. Applies to every change made from this browser."}}</p>
+
+    <dl id="sys-info" class="status"></dl>
+  </section>
+</main>
+
+<dialog id="connect-dialog">
+  <form method="dialog" autocomplete="off">
+    <h2 id="connect-title">{{call .T "Connect"}}</h2>
+    <p class="muted small" id="connect-info"></p>
+    <p class="muted small" id="connect-saved" hidden>{{call .T "This network is saved; the stored password will be used."}}</p>
+    <button type="button" class="link" id="connect-newpass" hidden>{{call .T "Use a different password"}}</button>
+    <div id="connect-pass-wrap">
+      <label for="c-pass">{{call .T "Password"}}</label>
+      <div class="pwfield">
+        <input id="c-pass" type="password" minlength="8" maxlength="63" autocomplete="new-password">
+        <button type="button" class="link pw-toggle" hidden
+                aria-controls="c-pass" aria-pressed="false" data-target="c-pass"
+                data-show="{{call .T "Show"}}" data-hide="{{call .T "Hide"}}">{{call .T "Show"}}</button>
+      </div>
+    </div>
+    <label class="check"><input id="c-norollback" type="checkbox"> {{call .T "Do not roll back (I accept losing this session)"}}</label>
+    <div class="row end">
+      <button type="button" class="secondary" id="connect-cancel">{{call .T "Cancel"}}</button>
+      <button type="button" class="secondary accent" id="connect-ok">{{call .T "Connect"}}</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirm-dialog">
+  <form method="dialog">
+    <h2>{{call .T "Review this change"}}</h2>
+    <div id="confirm-changes" class="diff"></div>
+    <p class="warn small" id="confirm-warning" hidden></p>
+    <div class="row end">
+      <button type="button" class="secondary" id="confirm-cancel">{{call .T "Cancel"}}</button>
+      <button type="button" class="secondary accent" id="confirm-ok">{{call .T "Apply"}}</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/static/pwtoggle.js?v={{.Version}}" defer></script>
+<script src="/static/menu.js?v={{.Version}}" defer></script>
+<script src="/static/listbox.js?v={{.Version}}" defer></script>
+<script src="/static/common.js?v={{.Version}}"></script>
+<script src="/static/app.js?v={{.Version}}"></script>
+</body>
+</html>{{end}}

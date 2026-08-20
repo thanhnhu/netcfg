@@ -1,0 +1,233 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: "Which architecture to build"
+        type: choice
+        default: all
+        options: [all, linux-amd64, linux-arm64, linux-armv7]
+      publish:
+        description: "What to do with the build"
+        type: choice
+        default: artefacts
+        options:
+          - artefacts          # build only, download from the run
+          - rolling            # replace the "latest" prerelease
+          - release            # publish an existing v* tag
+      tag:
+        description: "Existing tag, e.g. v0.1.0. Only read when publishing a release."
+        required: false
+
+permissions:
+  contents: write
+
+env:
+  # The binaries are static so the release artefacts run on any glibc/musl host.
+  CGO_ENABLED: "0"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.decide.outputs.matrix }}
+      mode: ${{ steps.decide.outputs.mode }}
+      tag: ${{ steps.decide.outputs.tag }}
+    steps:
+      - id: decide
+        env:
+          ARCH: ${{ inputs.arch }}
+          PUBLISH: ${{ inputs.publish }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -eu
+          # A tag push is always a full release; a manual run decides for itself.
+          if [ "$EVENT" = "push" ]; then
+            mode=release
+            tag="$REF_NAME"
+            arch=all
+          else
+            mode="${PUBLISH:-artefacts}"
+            tag="${INPUT_TAG:-}"
+            arch="${ARCH:-all}"
+          fi
+
+          # The rolling build names itself, so it never waits on a version tag.
+          if [ "$mode" = "rolling" ]; then
+            tag=latest
+          fi
+
+          if [ "$mode" = "release" ] && [ -z "$tag" ]; then
+            echo "::error::publishing a release needs a tag that already exists on the remote"
+            {
+              echo "### Nothing was built"
+              echo ""
+              echo "\`release\` attaches archives to a tag that already exists, and none was given."
+              echo ""
+              echo "- To get a build you can download from this run, choose **artefacts**."
+              echo "- For a rolling build published as \`latest\`, choose **rolling**."
+              echo "- For a real release, create the tag first:"
+              echo ""
+              echo '```sh'
+              echo "git tag -a v0.1.0 -m 'v0.1.0'"
+              echo "git push origin v0.1.0"
+              echo '```'
+              echo ""
+              echo "Pushing a \`v*\` tag runs this workflow and releases on its own."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+
+          amd64='{"goarch":"amd64","suffix":"linux-amd64"}'
+          arm64='{"goarch":"arm64","suffix":"linux-arm64"}'
+          armv7='{"goarch":"arm","goarm":"7","suffix":"linux-armv7"}'
+
+          case "$arch" in
+            linux-amd64) include="[$amd64]" ;;
+            linux-arm64) include="[$arm64]" ;;
+            linux-armv7) include="[$armv7]" ;;
+            *)           include="[$amd64,$arm64,$armv7]" ;;
+          esac
+
+          echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "building $arch (mode=$mode tag=${tag:-none})" >> "$GITHUB_STEP_SUMMARY"
+
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - run: go vet ./...
+      - run: go test ./...
+
+  build:
+    needs: [plan, verify]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+        run: |
+          mkdir -p dist
+          for binary in netcfgd netcfg-web; do
+            go build -trimpath -ldflags "-s -w" -o "dist/${binary}-${{ matrix.suffix }}" "./cmd/${binary}"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.suffix }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [plan, build]
+    if: needs.plan.outputs.mode != 'artefacts'
+    runs-on: ubuntu-latest
+    steps:
+      # Tags come along because the package version of a rolling build is
+      # anchored to the last v* release.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Bundle each architecture with the deployment files
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -eu
+          mkdir -p dist
+          # Derived from what was actually built, so a single-architecture
+          # release does not advertise archives that do not exist.
+          for binary in artifacts/netcfgd-*; do
+            suffix="${binary#artifacts/netcfgd-}"
+            stage="netcfg-${TAG}-${suffix}"
+            mkdir -p "${stage}/deploy"
+            cp "artifacts/netcfgd-${suffix}" "${stage}/netcfgd"
+            cp "artifacts/netcfg-web-${suffix}" "${stage}/netcfg-web"
+            chmod +x "${stage}/netcfgd" "${stage}/netcfg-web"
+            cp deploy/install.sh deploy/*.service deploy/*.xml deploy/*.example "${stage}/deploy/"
+            cp README.md README.en.md "${stage}/"
+            # "latest" is the same filename every time, so the archive has to say
+            # which build it is; otherwise a device in the field cannot be traced
+            # back to a commit.
+            {
+              echo "tag:    ${TAG}"
+              echo "commit: ${{ github.sha }}"
+              echo "built:  $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            } > "${stage}/VERSION"
+            tar -czf "dist/${stage}.tar.gz" "${stage}"
+
+            case "$suffix" in
+              linux-amd64) goarch=amd64 ;;
+              linux-arm64) goarch=arm64 ;;
+              linux-armv7) goarch=arm ;;
+              *) echo "no Debian architecture for $suffix" >&2; exit 1 ;;
+            esac
+            BIN_DIR="${stage}" OUT_DIR=dist VERSION="${TAG}" \
+              sh deploy/build-deb.sh "$goarch"
+          done
+          cd dist && sha256sum *.tar.gz *.deb > SHA256SUMS
+
+      - name: Replace the rolling prerelease
+        if: needs.plan.outputs.mode == 'rolling'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          # Deleting the tag with the release keeps the recreate from attaching
+          # new archives to an old commit.
+          gh release delete latest --repo "${{ github.repository }}" --yes --cleanup-tag || true
+          gh release create latest dist/* \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "latest" \
+            --prerelease \
+            --notes "Rolling build of ${{ github.sha }}. Replaced on every manual run; use a v* release for anything you intend to keep."
+
+      - name: Publish the release
+        if: needs.plan.outputs.mode == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          gh release create "$TAG" dist/* \
+            --repo "${{ github.repository }}" \
+            --title "$TAG" \
+            --generate-notes \
+            --verify-tag

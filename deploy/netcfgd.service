@@ -1,0 +1,62 @@
+[Unit]
+Description=netcfgd — privileged network configuration agent
+Documentation=https://netcfg.local/
+After=network-pre.target dbus.service
+Wants=network-pre.target
+Before=netcfg-web.service
+
+[Service]
+Type=simple
+# NETCFGD_OPTS carries the options an operator turns on per host, "-allow-ssh"
+# above all: letting the interface open a shell is a real widening of the attack
+# surface, so the choice belongs to whoever installs the device. The package
+# writes this file from its debconf answer; edit it and restart to change it.
+EnvironmentFile=-/etc/default/netcfgd
+ExecStart=/usr/local/bin/netcfgd \
+    -socket /run/netcfgd/netcfgd.sock \
+    -ctrl-local-dir /run/netcfgd \
+    -allow-users netcfg \
+    -socket-group netcfg \
+    -ap-fallback \
+    -ap-fallback-after 5m \
+    -log-format json \
+    $NETCFGD_OPTS
+Restart=on-failure
+RestartSec=3
+
+# This is the only process allowed to touch the network.
+User=root
+# Group only decides who owns RuntimeDirectory: a 0750 directory owned by
+# root:root would hide the socket from the web tier no matter what the socket's
+# own mode says, because it could not traverse the directory to reach it.
+Group=netcfg
+RuntimeDirectory=netcfgd
+RuntimeDirectoryMode=0750
+StateDirectory=netcfgd
+StateDirectoryMode=0700
+
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_KILL CAP_SYS_ADMIN
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+# The "-" prefix keeps a missing directory from failing the whole unit: a host
+# without ifupdown has no interfaces.d, and one without wpa_supplicant has no
+# /etc/wpa_supplicant. Neither is a reason to refuse to start.
+ReadWritePaths=-/etc/systemd/network -/etc/network/interfaces.d -/etc/wpa_supplicant
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# PrivateTmp is safe because the control socket lives in /run/netcfgd, not /tmp.
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,30 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        # Removing the package does not undo the network configuration it wrote
+        # to /etc/systemd/network and friends: the device keeps running with the
+        # addresses and metrics the operator set.
+        rm -rf /etc/netcfg-web /var/lib/netcfg-web /var/lib/netcfgd /run/netcfgd
+        rm -f /etc/default/netcfgd
+
+        if getent passwd netcfg >/dev/null; then
+            deluser --system netcfg >/dev/null 2>&1 || true
+        fi
+        if getent group netcfg >/dev/null; then
+            delgroup --system netcfg >/dev/null 2>&1 || true
+        fi
+
+        if [ -e /usr/share/debconf/confmodule ]; then
+            . /usr/share/debconf/confmodule
+            db_purge || true
+        fi
+        ;;
+esac
+
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload || true
+fi
+
+exit 0

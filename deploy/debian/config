@@ -1,0 +1,38 @@
+#!/bin/sh
+# Asks for the administrator password before the package is unpacked.
+set -e
+
+. /usr/share/debconf/confmodule
+
+db_input high netcfg/allow-ssh || true
+db_go || true
+
+# An upgrade, or a reinstall over an existing account, must not ask again.
+if [ -f /etc/netcfg-web/config.json ]; then
+    exit 0
+fi
+
+while [ "${attempts:=0}" -lt 3 ]; do
+    attempts=$((attempts + 1))
+
+    db_input high netcfg/admin-password || true
+    db_go || true
+    db_get netcfg/admin-password
+    password="$RET"
+
+    # An empty answer skips the account; a frontend with nothing to read from,
+    # as in an unattended install, always lands here instead of hanging.
+    [ -n "$password" ] || break
+
+    db_input high netcfg/admin-password-again || true
+    db_go || true
+    db_get netcfg/admin-password-again
+    [ "$password" = "$RET" ] && break
+
+    db_fset netcfg/admin-password seen false
+    db_fset netcfg/admin-password-again seen false
+    db_input critical netcfg/password-mismatch || true
+    db_go || true
+done
+
+exit 0

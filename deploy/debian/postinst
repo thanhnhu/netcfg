@@ -1,0 +1,102 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure) ;;
+    abort-upgrade|abort-remove|abort-deconfigure) exit 0 ;;
+    *) exit 0 ;;
+esac
+
+. /usr/share/debconf/confmodule
+
+marker="# Written by the netcfg package. Run: dpkg-reconfigure netcfg"
+
+# write_options keeps /etc/default/netcfgd in step with the debconf answer, but
+# only while the file is still the one the package wrote: once an operator edits
+# it, their flags win and an upgrade must not throw them away.
+write_options() {
+    options=""
+    [ "$1" = "true" ] && options="-allow-ssh"
+
+    if [ -f /etc/default/netcfgd ] && ! head -n 1 /etc/default/netcfgd | grep -qF "$marker"; then
+        echo "netcfg: /etc/default/netcfgd was edited locally, leaving it alone" >&2
+        return
+    fi
+
+    cat > /etc/default/netcfgd <<EOF
+$marker
+# Extra options for netcfgd. "-allow-ssh" lets the web interface open and close
+# the device's SSH server; see netcfgd -h for the rest.
+NETCFGD_OPTS="$options"
+EOF
+    chmod 0644 /etc/default/netcfgd
+}
+
+if ! getent group netcfg >/dev/null; then
+    addgroup --system netcfg
+fi
+if ! getent passwd netcfg >/dev/null; then
+    # The home directory has to exist first, or adduser warns that it cannot
+    # reach it; ownership is set below, once the user exists.
+    install -d -m 0700 /var/lib/netcfg-web
+    adduser --system --ingroup netcfg --home /var/lib/netcfg-web --no-create-home \
+        --shell /usr/sbin/nologin --gecos "netcfg web UI" netcfg
+fi
+
+install -d -m 0750 -o netcfg -g netcfg /etc/netcfg-web
+install -d -m 0700 -o netcfg -g netcfg /var/lib/netcfg-web
+install -d -m 0700 -o root   -g root   /var/lib/netcfgd
+
+if [ ! -f /etc/netcfg-web/config.json ]; then
+    db_get netcfg/admin-password || RET=""
+    if [ -n "$RET" ]; then
+        NETCFG_PASSWORD="$RET" /usr/bin/netcfg-web -set-password \
+            -username admin -config /etc/netcfg-web/config.json >/dev/null
+    fi
+fi
+# The digest is on disk now, so the clear text must not stay in the debconf
+# database, which is world readable on some hosts.
+db_set netcfg/admin-password "" || true
+db_set netcfg/admin-password-again "" || true
+
+if [ -f /etc/netcfg-web/config.json ]; then
+    # The web UI rewrites this file when the operator changes the password.
+    chown netcfg:netcfg /etc/netcfg-web/config.json
+    chmod 0600 /etc/netcfg-web/config.json
+fi
+
+db_get netcfg/allow-ssh || RET=false
+write_options "$RET"
+
+db_stop
+
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload || true
+
+    # netcfgd starts hostapd and dnsmasq itself, so their own units must stay idle.
+    for unit in hostapd.service dnsmasq.service; do
+        if systemctl is-enabled "$unit" >/dev/null 2>&1; then
+            echo "netcfg: disabling $unit, netcfgd manages this process itself"
+            systemctl disable --now "$unit" >/dev/null 2>&1 || true
+        fi
+    done
+
+    systemctl enable netcfgd.service >/dev/null 2>&1 || true
+    systemctl restart netcfgd.service || true
+
+    if [ -f /etc/netcfg-web/config.json ]; then
+        systemctl enable netcfg-web.service >/dev/null 2>&1 || true
+        systemctl restart netcfg-web.service || true
+        echo "netcfg: the interface listens on :8090 over HTTPS"
+        ip -4 -o addr show scope global 2>/dev/null |
+            awk '{split($4,a,"/"); print "netcfg:   https://" a[1] ":8090/"}' || true
+    else
+        cat >&2 <<'EOF'
+netcfg: no password was given, so netcfg-web is not started yet. Finish with:
+netcfg:   sudo netcfg-web -set-password -username admin -config /etc/netcfg-web/config.json
+netcfg:   sudo systemctl enable --now netcfg-web
+EOF
+    fi
+fi
+
+exit 0

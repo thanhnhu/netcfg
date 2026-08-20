@@ -1,0 +1,33 @@
+{{define "login.html"}}<!DOCTYPE html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{call .T "Sign in"}} · {{call .T "Network configuration"}}</title>
+<link rel="stylesheet" href="/static/app.css?v={{.Version}}">
+</head>
+<body class="centered">
+<main class="card login">
+  <h1>{{call .T "Network configuration"}}</h1>
+  <p class="muted">{{call .T "Sign in to manage this device's Wi-Fi and IP settings."}}</p>
+  {{if .Error}}<p class="alert error">{{.Error}}</p>{{end}}
+  <form method="post" action="/login" autocomplete="off">
+    <label for="username">{{call .T "Username"}}</label>
+    <input id="username" name="username" type="text" required autofocus autocomplete="username">
+    <label for="password">{{call .T "Password"}}</label>
+    <div class="pwfield">
+      <input id="password" name="password" type="password" required autocomplete="current-password">
+      <button type="button" id="pw-toggle" class="link pw-toggle" hidden
+              aria-controls="password" aria-pressed="false" data-target="password"
+              data-show="{{call .T "Show"}}" data-hide="{{call .T "Hide"}}">{{call .T "Show"}}</button>
+    </div>
+    <button type="submit" class="primary block">{{call .T "Sign in"}}</button>
+  </form>
+  <p class="langbar muted small">
+    {{call .T "Language"}}:
+    {{range .Supported}}<a href="/login?lang={{.}}">{{.}}</a>{{end}}
+  </p>
+</main>
+<script src="/static/pwtoggle.js?v={{.Version}}" defer></script>
+</body>
+</html>{{end}}

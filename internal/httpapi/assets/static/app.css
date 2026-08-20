@@ -1,0 +1,317 @@
+:root {
+  color-scheme: dark;
+  --bg: #10141b;
+  --card: #182029;
+  --field: #0f151d;
+  --line: #263140;
+  --text: #e6edf5;
+  --muted: #93a2b5;
+  --accent: #3b82f6;
+  --ok: #22c55e;
+  --err: #ef4444;
+  --warn: #f59e0b;
+  /* Every field and every content button is this tall, so a button always
+     lines up with the control next to it. The header nav is exempt. */
+  --control-h: 40px;
+  /* One vertical rhythm between stacked controls. */
+  --gap: 16px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+body.centered { display: grid; place-items: center; min-height: 100vh; padding: 16px; }
+
+h1 { font-size: 1.15rem; margin: 0; }
+h2 { font-size: 1rem; margin: 0; }
+/* Without this h3 inherits the browser default and renders larger than h2. */
+h3 {
+  font-size: .85rem; margin: 0; color: var(--muted); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+p { margin: 0; }
+
+/* One vertical rhythm, owned by the container rather than by both neighbours:
+   a margin declared on the element above *and* the one below is what made
+   gaps add up to 28 and 32px where 16 was meant. These rules must come after
+   the resets above, and the tighter pairs below must out-rank them. */
+.card > * + *, form > * + *, details > * + *, .stack > * + * { margin-top: var(--gap); }
+
+/* Pieces that read as one unit close back up. The descendant class raises the
+   specificity above the rhythm rule. */
+.card :is(label + input, label + select, label + textarea, label + .listbox, label + .pwfield),
+.login :is(label + input, label + .pwfield) { margin-top: 6px; }
+.card :is(h2, h3) + p { margin-top: 8px; }
+.card :is(h2, h3) + label { margin-top: 10px; }
+code, .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .85rem; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px 20px; flex-wrap: wrap;
+  padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--card);
+}
+.topbar-left { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; min-width: 0; flex: 1 1 auto; }
+/* margin-left keeps the cluster on the right even when it wraps onto its own
+   line, which is what happens on a phone. */
+.topbar-right { display: flex; align-items: center; flex-wrap: nowrap; gap: 14px; flex: 0 0 auto; margin-left: auto; }
+.topbar-right > * { flex: 0 0 auto; white-space: nowrap; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 20px 16px 60px; }
+
+.mainnav { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.navitem {
+  background: transparent; color: var(--muted); border: none;
+  padding: 6px 11px; border-radius: 8px; font-size: .9rem;
+}
+.navitem:hover { color: var(--text); background: rgba(255, 255, 255, .05); }
+.navitem.active { color: var(--text); background: rgba(59, 130, 246, .16); }
+
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 12px; padding: 18px; margin-bottom: 16px;
+}
+.login { width: min(400px, 100%); }
+.login h1 { margin-bottom: 4px; }
+
+.muted { color: var(--muted); }
+.small { font-size: .85rem; }
+
+.row { display: flex; align-items: flex-end; gap: 12px; }
+.row.end { justify-content: flex-end; align-items: center; }
+/* A heading is 24px tall next to a 40px button, so flex-end would let the
+   button overhang the text it labels. */
+.row.head { align-items: center; }
+.row.head > h2, .row.head > h3 { margin: 0; }
+.grow { flex: 1; }
+
+label { display: block; font-size: .85rem; color: var(--muted); }
+label.check { display: flex; align-items: center; gap: 8px; }
+label.check input { width: auto; }
+
+.pwfield { position: relative; }
+.pwfield input { padding-right: 68px; }
+.pwfield .pw-toggle {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font-size: .8rem; padding: 2px 4px; margin: 0;
+}
+
+input, select, textarea {
+  /* block, or the inline-block line box leaves a stray few pixels underneath
+     and the rhythm below the control stops matching everything else. */
+  display: block; width: 100%; padding: 9px 11px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--field); color: var(--text); font: inherit;
+}
+/* padding-block rather than the padding shorthand, so the wider right padding
+   a password field needs for its reveal button survives. */
+input:not([type="checkbox"]), select { height: var(--control-h); padding-block: 0; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* The popup a select opens is drawn by the browser; background and colour are
+   the properties it honours. Matching the closed control keeps the list from
+   flashing a different shade. Pointer devices get .listbox instead. */
+select option, select optgroup {
+  background: var(--field); color: var(--text);
+}
+
+.listbox { position: relative; width: 100%; }
+.listbox-native {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  padding: 0; border: 0; overflow: hidden; clip-path: inset(50%);
+}
+.listbox-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; height: var(--control-h); padding: 0 11px;
+  background: var(--field); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+  font: inherit; text-align: left;
+}
+.listbox-toggle::after {
+  content: ""; flex: 0 0 auto;
+  border: 5px solid transparent; border-top-color: var(--muted); margin-top: 5px;
+}
+.listbox-toggle:hover { border-color: var(--accent); }
+.listbox-toggle[aria-expanded="true"] { border-color: var(--accent); }
+.listbox-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.listbox-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.listbox-menu {
+  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px);
+  max-height: 260px; overflow-y: auto; margin: 0; padding: 4px;
+  list-style: none; background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .5);
+}
+.listbox-menu:focus { outline: none; }
+.listbox-menu li {
+  padding: 8px 11px; border-radius: 6px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.listbox-menu li.active { background: rgba(59, 130, 246, .16); }
+.listbox-menu li[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+.listbox-menu li[aria-disabled="true"] { color: var(--muted); cursor: default; }
+/* One metric for every action inside the content area, matching the height of
+   a form field. The header nav keeps its own smaller size. */
+button {
+  padding: 9px 16px; border: 1px solid transparent; border-radius: 8px;
+  font: inherit; cursor: pointer; white-space: nowrap;
+}
+.primary, .secondary, .danger, .tab {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: var(--control-h); padding: 0 14px; font-size: .9rem;
+}
+/* Any display rule above outranks the browser's own [hidden] handling, so
+   scripts toggling `hidden` would otherwise have no effect. */
+[hidden] { display: none !important; }
+button:disabled { opacity: .55; cursor: progress; }
+.primary { background: var(--accent); color: #fff; }
+.block { width: 100%; }
+.secondary { background: transparent; color: var(--text); border-color: var(--line); }
+/* Marks the button that actually commits a change, so it reads differently
+   from the harmless one sitting next to it. */
+.secondary.accent { color: var(--accent); border-color: var(--accent); }
+.link { background: none; border: none; color: var(--accent); padding: 0; }
+.danger { background: transparent; color: var(--err); border-color: var(--line); }
+
+.tabs { display: flex; gap: 8px; }
+.tab { background: transparent; color: var(--muted); border-color: var(--line); }
+.tab.active { background: var(--card); color: var(--text); border-color: var(--accent); }
+
+.failover-row {
+  display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 8px 14px;
+  padding: 12px 0; border-bottom: 1px solid var(--line);
+}
+.failover-row:last-of-type { border-bottom: none; }
+.failover-row .who { min-width: 0; }
+.failover-row .who .who-head { display: flex; align-items: center; gap: 10px; }
+.failover-row .who .name { font-weight: 600; }
+.failover-row .who .meta { display: block; font-size: .8rem; color: var(--muted); word-break: break-all; }
+.failover-row label { margin: 0; }
+.failover-row label.inline { display: flex; align-items: center; gap: 8px; }
+.failover-row input[type="number"] { width: 110px; }
+
+.status { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; }
+.status dt { color: var(--muted); font-size: .85rem; }
+.status dd { margin: 0; word-break: break-all; }
+
+.list { list-style: none; padding: 0; }
+.list li {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+  padding: 11px 4px; border-bottom: 1px solid var(--line);
+}
+.list li:last-child { border-bottom: none; }
+.list li button { margin-top: 0; }
+.list .name { font-weight: 600; }
+.list .meta { font-size: .8rem; color: var(--muted); }
+.list .secret { flex-basis: 100%; margin: 0; word-break: break-all; }
+.list .secret code { color: var(--text); font-size: .85rem; }
+
+.bar { width: 56px; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--ok); }
+
+.meter-row { margin: 0; }
+.meter-row + .meter-row { margin-top: 12px; }
+.meter-head { display: flex; justify-content: space-between; gap: 12px; font-size: .88rem; margin-bottom: 5px; }
+.meter-head span:first-child { color: var(--muted); word-break: break-all; }
+.meter { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.meter > i { display: block; height: 100%; background: var(--ok); transition: width .4s ease; }
+.meter > i.warn { background: var(--warn); }
+.meter > i.critical { background: var(--err); }
+
+.sensor-group { margin: 0; font-size: .85rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.status dd.warn { color: var(--warn); }
+.status dd.critical { color: var(--err); font-weight: 600; }
+
+.badge {
+  font-size: .7rem; padding: 2px 7px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted);
+}
+.badge.on { color: var(--ok); border-color: var(--ok); }
+.badge.off { color: var(--err); border-color: var(--err); }
+.badge.warn { color: var(--warn); border-color: var(--warn); }
+
+.langbar { display: inline-flex; gap: 6px; font-size: .8rem; }
+.langbar a { color: var(--muted); text-decoration: none; text-transform: uppercase; }
+.langbar a:hover { color: var(--accent); }
+.login .langbar { justify-content: center; margin-top: 18px; }
+
+.usermenu { position: relative; }
+.usermenu > summary {
+  display: inline-flex; align-items: center; gap: 5px;
+  list-style: none; cursor: pointer; color: var(--muted); font-size: .9rem;
+}
+.usermenu > summary::-webkit-details-marker { display: none; }
+.usermenu > summary::after { content: "▾"; font-size: .7rem; }
+.usermenu > summary:hover, .usermenu[open] > summary { color: var(--text); }
+/* Chrome still lays the panel out while the disclosure is closed. */
+.usermenu:not([open]) > .usermenu-panel { display: none; }
+.usermenu-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 10;
+  min-width: 190px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 8px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 10px 24px rgba(0, 0, 0, .45);
+}
+.usermenu-panel a, .usermenu-panel button {
+  display: block; width: 100%; text-align: left; padding: 7px 10px;
+  border-radius: 6px; color: var(--text); text-decoration: none; font-size: .9rem;
+}
+.usermenu-panel a:hover, .usermenu-panel button:hover { background: rgba(59, 130, 246, .14); }
+.usermenu-panel form { width: 100%; }
+
+.narrow { max-width: 480px; }
+.card a { color: var(--accent); }
+.back { color: var(--muted); text-decoration: none; font-size: .85rem; }
+.back::before { content: "← "; }
+.back:hover { color: var(--accent); }
+
+.alert { padding: 10px 14px; border-radius: 8px; margin: 0 0 14px; }
+.alert.error { background: rgba(239, 68, 68, .12); color: #fca5a5; }
+.alert.ok { background: rgba(34, 197, 94, .12); color: #86efac; }
+.alert.warn { background: rgba(245, 158, 11, .12); color: #fcd34d; }
+
+.pending { border-color: var(--warn); background: rgba(245, 158, 11, .07); }
+.pending h2 { margin-top: 0; color: var(--warn); }
+.hotspot { border-color: var(--accent); background: rgba(59, 130, 246, .08); }
+
+@media (max-width: 560px) {
+  .topbar { padding: 12px 14px; }
+  .wrap { padding: 16px 12px 48px; }
+  .card { padding: 14px; }
+  .row { flex-wrap: wrap; }
+  /* A field keeps the whole line and pushes its action button underneath,
+     rather than the two squeezing each other down to nothing. A heading row
+     is exempt: its button belongs beside the title. */
+  .row:not(.head) > .grow { flex: 1 1 100%; }
+  .row:not(.head) > button { flex: 1 1 auto; }
+  .failover-row { grid-template-columns: 1fr; }
+  .list li { gap: 8px; }
+}
+.hotspot h2 { margin-top: 0; color: var(--accent); }
+.changes { list-style: none; margin: 12px 0; padding: 0; }
+.changes li { padding: 4px 0; font-size: .87rem; }
+.changes .field { color: var(--muted); display: inline-block; min-width: 90px; }
+
+.countdown { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 12px; }
+.countdown > i { display: block; height: 100%; background: var(--warn); transition: width 1s linear; }
+
+.diff { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.diff .warn { color: var(--warn); }
+
+/* Scoped to cards: the header account menu is a <details> too and must not
+   inherit the disclosure separator. */
+.card details { border-top: 1px solid var(--line); padding-top: 12px; }
+.card summary { cursor: pointer; color: var(--accent); }
+
+dialog {
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--card); color: var(--text); width: min(420px, 92vw); padding: 20px;
+}
+dialog::backdrop { background: rgba(0, 0, 0, .6); }
+
+@media (max-width: 540px) {
+  .list li { flex-wrap: wrap; }
+  .row { flex-wrap: wrap; }
+}

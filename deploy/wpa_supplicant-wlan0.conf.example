@@ -1,0 +1,9 @@
+# /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+#
+# ctrl_interface: where wpa_cli and this application connect to.
+# update_config=1: required. Without it SAVE_CONFIG fails and every Wi-Fi
+# setting is lost on the next reboot.
+
+ctrl_interface=DIR=/run/wpa_supplicant GROUP=netdev
+update_config=1
+country=VN

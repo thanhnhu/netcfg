@@ -1,0 +1,24 @@
+Package: netcfg
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: @MAINTAINER@
+Installed-Size: @SIZE@
+Section: net
+Priority: optional
+Depends: adduser, iproute2, debconf (>= 0.5) | debconf-2.0
+Recommends: wpasupplicant, hostapd, dnsmasq, iw
+Suggests: avahi-daemon
+Homepage: https://github.com/thanhnhu/netcfg
+Description: web interface for configuring a headless Debian device
+ netcfg drives Wi-Fi through whichever subsystem holds the radio
+ (wpa_supplicant or NetworkManager) and IPv4/IPv6 through whichever backend
+ manages the host (systemd-networkd, NetworkManager or ifupdown).
+ .
+ Every change that can cut the connection is applied with a rollback timer
+ owned by the root agent, so a mistake restores itself instead of locking the
+ operator out. When no network is left the device raises its own access point
+ with a captive portal.
+ .
+ The package installs two static binaries: netcfgd, the privileged agent, and
+ netcfg-web, the unprivileged HTTPS interface that reaches it over a Unix
+ socket.

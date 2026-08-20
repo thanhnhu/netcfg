@@ -1,0 +1,28 @@
+Template: netcfg/admin-password
+Type: password
+Description: Administrator password for the web interface:
+ The interface has a single account, named "admin". The password is stored as
+ a PBKDF2-HMAC-SHA256 digest, never in clear text.
+ .
+ Leave this empty to skip the account for now. netcfg-web is then left stopped
+ until you create one by hand.
+
+Template: netcfg/admin-password-again
+Type: password
+Description: Repeat the administrator password:
+
+Template: netcfg/password-mismatch
+Type: error
+Description: The two entries do not match
+ Enter the same password twice, or leave both empty to skip the account.
+
+Template: netcfg/allow-ssh
+Type: boolean
+Default: false
+Description: Let the web interface switch the SSH server on and off?
+ The interface can open the device's SSH server for a diagnostic window and
+ close it again, which is useful on a device you cannot reach any other way.
+ .
+ It also means anyone who gets into the web interface can open a shell on the
+ device, so leave this off unless you need it. Change it later with
+ "dpkg-reconfigure netcfg".

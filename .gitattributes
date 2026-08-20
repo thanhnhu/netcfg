@@ -1,0 +1,12 @@
+# The targets are Linux devices: a shell script or unit file that picks up CRLF
+# on a Windows checkout fails there with an unhelpful error.
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.service text eol=lf
+*.conf text eol=lf
+*.example text eol=lf
+Makefile text eol=lf
+
+*.png binary
+*.jpg binary
